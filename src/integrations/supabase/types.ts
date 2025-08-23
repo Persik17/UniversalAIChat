@@ -19,31 +19,39 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          model: string | null
           name: string
+          role: string | null
           system_prompt: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
           description?: string | null
           id?: string
+          model?: string | null
           name: string
+          role?: string | null
           system_prompt: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
           description?: string | null
           id?: string
+          model?: string | null
           name?: string
+          role?: string | null
           system_prompt?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
-      conversations: {
+      chats: {
         Row: {
-          agent_id: string | null
           created_at: string
           id: string
           title: string
@@ -51,7 +59,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          agent_id?: string | null
           created_at?: string
           id?: string
           title: string
@@ -59,22 +66,81 @@ export type Database = {
           user_id: string
         }
         Update: {
-          agent_id?: string | null
           created_at?: string
           id?: string
           title?: string
           updated_at?: string
           user_id?: string
         }
+        Relationships: []
+      }
+      doc_chunks: {
+        Row: {
+          content: string
+          created_at: string
+          doc_id: string
+          embedding: string | null
+          id: string
+          page: number
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          doc_id: string
+          embedding?: string | null
+          id?: string
+          page: number
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          doc_id?: string
+          embedding?: string | null
+          id?: string
+          page?: number
+          user_id?: string
+        }
         Relationships: [
           {
-            foreignKeyName: "conversations_agent_id_fkey"
-            columns: ["agent_id"]
+            foreignKeyName: "doc_chunks_doc_id_fkey"
+            columns: ["doc_id"]
             isOneToOne: false
-            referencedRelation: "agents"
+            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
         ]
+      }
+      documents: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          meta: Json | null
+          pages: number | null
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          meta?: Json | null
+          pages?: number | null
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          meta?: Json | null
+          pages?: number | null
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       files: {
         Row: {
@@ -108,32 +174,44 @@ export type Database = {
       }
       messages: {
         Row: {
+          chat_id: string
           content: string
-          conversation_id: string
           created_at: string
           id: string
+          meta: Json | null
+          model: string | null
+          msg_type: string | null
           role: string
+          sender: string | null
         }
         Insert: {
+          chat_id: string
           content: string
-          conversation_id: string
           created_at?: string
           id?: string
+          meta?: Json | null
+          model?: string | null
+          msg_type?: string | null
           role: string
+          sender?: string | null
         }
         Update: {
+          chat_id?: string
           content?: string
-          conversation_id?: string
           created_at?: string
           id?: string
+          meta?: Json | null
+          model?: string | null
+          msg_type?: string | null
           role?: string
+          sender?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "messages_conversation_id_fkey"
-            columns: ["conversation_id"]
+            foreignKeyName: "messages_chat_id_fkey"
+            columns: ["chat_id"]
             isOneToOne: false
-            referencedRelation: "conversations"
+            referencedRelation: "chats"
             referencedColumns: ["id"]
           },
         ]
@@ -205,7 +283,112 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      binary_quantize: {
+        Args: { "": string } | { "": unknown }
+        Returns: unknown
+      }
+      halfvec_avg: {
+        Args: { "": number[] }
+        Returns: unknown
+      }
+      halfvec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      halfvec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      halfvec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      hnsw_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_sparsevec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnswhandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflat_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflat_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflathandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      l2_norm: {
+        Args: { "": unknown } | { "": unknown }
+        Returns: number
+      }
+      l2_normalize: {
+        Args: { "": string } | { "": unknown } | { "": unknown }
+        Returns: unknown
+      }
+      match_doc_chunks: {
+        Args: {
+          in_user_id?: string
+          match_count?: number
+          query_embedding: string
+        }
+        Returns: {
+          content: string
+          doc_id: string
+          id: string
+          page: number
+          similarity: number
+        }[]
+      }
+      sparsevec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      sparsevec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      sparsevec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      vector_avg: {
+        Args: { "": number[] }
+        Returns: string
+      }
+      vector_dims: {
+        Args: { "": string } | { "": unknown }
+        Returns: number
+      }
+      vector_norm: {
+        Args: { "": string }
+        Returns: number
+      }
+      vector_out: {
+        Args: { "": string }
+        Returns: unknown
+      }
+      vector_send: {
+        Args: { "": string }
+        Returns: string
+      }
+      vector_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
