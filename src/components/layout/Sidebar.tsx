@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useChats } from '@/hooks/useChats';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -14,21 +15,47 @@ import {
   Plus,
   Sparkles,
   FileText,
-  Mic,
   Brain,
-  Zap
+  Zap,
+  Trash2
 } from 'lucide-react';
 
 const Sidebar = () => {
   const { user, signOut } = useAuth();
+  const { chats, createChat, deleteChat } = useChats();
   const location = useLocation();
+  const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navigation = [
-    { name: 'Чаты', href: '/', icon: MessageSquare, current: location.pathname === '/' },
-    { name: 'Агенты', href: '/agents', icon: Bot, current: location.pathname === '/agents' },
-    { name: 'Документы', href: '/documents', icon: FileText, current: location.pathname === '/documents' },
-    { name: 'Голос', href: '/voice', icon: Mic, current: location.pathname === '/voice' },
+    { 
+      name: 'Чаты', 
+      href: '/chat', 
+      icon: MessageSquare, 
+      current: location.pathname === '/' || location.pathname === '/chat',
+      description: 'Диалоги с AI агентами'
+    },
+    { 
+      name: 'Агенты', 
+      href: '/agents', 
+      icon: Bot, 
+      current: location.pathname === '/agents',
+      description: 'Управление AI агентами'
+    },
+    { 
+      name: 'Документы', 
+      href: '/documents', 
+      icon: FileText, 
+      current: location.pathname === '/documents',
+      description: 'RAG документы и знания'
+    },
+    { 
+      name: 'Настройки', 
+      href: '/settings', 
+      icon: Settings, 
+      current: location.pathname === '/settings',
+      description: 'API ключи и конфигурация'
+    },
   ];
 
   const features = [
@@ -62,6 +89,14 @@ const Sidebar = () => {
         <Button 
           className="w-full bg-sidebar-primary hover:bg-sidebar-primary/90 text-sidebar-primary-foreground"
           size={isCollapsed ? "icon" : "default"}
+          onClick={async () => {
+            try {
+              const newChat = await createChat('Новый чат');
+              navigate(`/?chat=${newChat.id}`);
+            } catch (error) {
+              console.error('Failed to create chat:', error);
+            }
+          }}
         >
           <Plus className="h-4 w-4" />
           {!isCollapsed && <span className="ml-2">Новый чат</span>}
@@ -78,14 +113,21 @@ const Sidebar = () => {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors group ${
                     item.current
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
                   }`}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
-                  {!isCollapsed && <span className="text-sm font-medium">{item.name}</span>}
+                  {!isCollapsed && (
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{item.name}</span>
+                      <span className="text-xs text-sidebar-foreground/60 group-hover:text-sidebar-foreground/80">
+                        {item.description}
+                      </span>
+                    </div>
+                  )}
                 </Link>
               );
             })}
@@ -134,15 +176,36 @@ const Sidebar = () => {
               Недавние чаты
             </h3>
             <div className="space-y-1">
-              {/* Mock recent chats */}
-              <div className="px-3 py-2 rounded-lg text-sidebar-foreground/80 hover:bg-sidebar-accent/50 cursor-pointer">
-                <p className="text-sm truncate">Помощь с кодом React</p>
-                <p className="text-xs text-sidebar-foreground/40">2 минуты назад</p>
-              </div>
-              <div className="px-3 py-2 rounded-lg text-sidebar-foreground/80 hover:bg-sidebar-accent/50 cursor-pointer">
-                <p className="text-sm truncate">Создание презентации</p>
-                <p className="text-xs text-sidebar-foreground/40">1 час назад</p>
-              </div>
+              {chats.slice(0, 5).map((chat) => (
+                <div
+                  key={chat.id}
+                  className="group px-3 py-2 rounded-lg text-sidebar-foreground/80 hover:bg-sidebar-accent/50 cursor-pointer"
+                  onClick={() => navigate(`/?chat=${chat.id}`)}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm truncate flex-1">{chat.title}</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 text-sidebar-foreground/40 hover:text-sidebar-foreground/80"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteChat(chat.id);
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-sidebar-foreground/40">
+                    {new Date(chat.updated_at).toLocaleDateString('ru-RU')}
+                  </p>
+                </div>
+              ))}
+              {chats.length === 0 && (
+                <div className="px-3 py-2 text-sidebar-foreground/40 text-xs">
+                  Нет чатов
+                </div>
+              )}
             </div>
           </div>
         )}

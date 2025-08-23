@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -7,201 +7,261 @@ export interface Agent {
   id: string;
   user_id: string;
   name: string;
-  role: string;
-  model: string;
+  description: string;
   system_prompt: string;
+  role: string;
+  is_active: boolean;
+  conversation_history?: any;
+  performance_metrics?: any;
+  last_updated?: string;
   created_at: string;
-  updated_at: string;
+}
+
+export interface CreateAgentData {
+  name: string;
+  description: string;
+  system_prompt: string;
+  role: string;
+}
+
+export interface UpdateAgentData {
+  name?: string;
+  description?: string;
+  system_prompt?: string;
+  role?: string;
+  is_active?: boolean;
 }
 
 export const useAgents = () => {
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load agents
-  const loadAgents = async () => {
-    if (!user) return;
+  // Load agents for the current user
+  const loadAgents = useCallback(async () => {
+    if (!user) {
+      setAgents([]);
+      setLoading(false);
+      return;
+    }
 
-    setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('agents');
+      setLoading(true);
+      setError(null);
 
-      if (error) {
-        throw error;
+      const { data, error: fetchError } = await supabase
+        .from('agents')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (fetchError) {
+        console.error('Error fetching agents:', fetchError);
+        setError(fetchError.message);
+        toast({
+          title: 'Ошибка загрузки агентов',
+          description: fetchError.message,
+          variant: 'destructive',
+        });
+        return;
       }
 
       setAgents(data || []);
-    } catch (error) {
-      console.error('Error loading agents:', error);
+    } catch (err) {
+      console.error('Unexpected error loading agents:', err);
+      setError('Неожиданная ошибка при загрузке агентов');
       toast({
-        title: "Ошибка",
-        description: "Не удалось загрузить агентов",
-        variant: "destructive",
+        title: 'Ошибка загрузки агентов',
+        description: 'Неожиданная ошибка при загрузке агентов',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
 
-  // Create agent
-  const createAgent = async (agentData: {
-    name: string;
-    role?: string;
-    model?: string;
-    system_prompt: string;
-  }) => {
-    if (!user) return null;
+  // Create a new agent
+  const createAgent = useCallback(async (agentData: CreateAgentData): Promise<Agent> => {
+    if (!user) {
+      throw new Error('Пользователь не авторизован');
+    }
 
-    setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('agents', {
-        body: {
-          name: agentData.name,
-          role: agentData.role || 'assistant',
-          model: agentData.model || 'gpt-5-2025-08-07',
-          system_prompt: agentData.system_prompt
-        }
-      });
+      const { data, error: insertError } = await supabase
+        .from('agents')
+        .insert({
+          ...agentData,
+          user_id: user.id,
+          is_active: true,
+          conversation_history: [],
+          performance_metrics: {
+            accuracy: 0.8,
+            response_time: 1.5,
+            user_satisfaction: 4.0
+          }
+        })
+        .select()
+        .single();
 
-      if (error) {
-        throw error;
+      if (insertError) {
+        console.error('Error creating agent:', insertError);
+        throw new Error(insertError.message);
       }
 
-      await loadAgents();
-      
+      if (!data) {
+        throw new Error('Агент не был создан');
+      }
+
+      // Add to local state
+      setAgents(prev => [data, ...prev]);
+
       toast({
-        title: "Успешно",
-        description: "Агент создан",
+        title: 'Агент создан',
+        description: `Агент "${agentData.name}" успешно создан`,
       });
 
       return data;
-    } catch (error) {
-      console.error('Error creating agent:', error);
+    } catch (err) {
+      console.error('Error creating agent:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Неизвестная ошибка';
       toast({
-        title: "Ошибка",
-        description: "Не удалось создать агента",
-        variant: "destructive",
+        title: 'Ошибка создания агента',
+        description: errorMessage,
+        variant: 'destructive',
       });
-      return null;
-    } finally {
-      setLoading(false);
+      throw err;
     }
-  };
+  }, [user, toast]);
 
-  // Update agent
-  const updateAgent = async (agentId: string, updates: Partial<Agent>) => {
-    if (!user) return null;
+  // Update an existing agent
+  const updateAgent = useCallback(async (agentId: string, updateData: UpdateAgentData): Promise<Agent> => {
+    if (!user) {
+      throw new Error('Пользователь не авторизован');
+    }
 
-    setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('agents', {
-        body: updates
-      });
+      const { data, error: updateError } = await supabase
+        .from('agents')
+        .update({
+          ...updateData,
+          last_updated: new Date().toISOString()
+        })
+        .eq('id', agentId)
+        .eq('user_id', user.id) // Ensure user can only update their own agents
+        .select()
+        .single();
 
-      if (error) {
-        throw error;
+      if (updateError) {
+        console.error('Error updating agent:', updateError);
+        throw new Error(updateError.message);
       }
 
-      await loadAgents();
-      
+      if (!data) {
+        throw new Error('Агент не найден');
+      }
+
+      // Update local state
+      setAgents(prev => prev.map(agent => 
+        agent.id === agentId ? { ...agent, ...data } : agent
+      ));
+
       toast({
-        title: "Успешно",
-        description: "Агент обновлен",
+        title: 'Агент обновлен',
+        description: `Агент "${data.name}" успешно обновлен`,
       });
 
       return data;
-    } catch (error) {
-      console.error('Error updating agent:', error);
+    } catch (err) {
+      console.error('Error updating agent:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Неизвестная ошибка';
       toast({
-        title: "Ошибка",
-        description: "Не удалось обновить агента",
-        variant: "destructive",
+        title: 'Ошибка обновления агента',
+        description: errorMessage,
+        variant: 'destructive',
       });
-      return null;
-    } finally {
-      setLoading(false);
+      throw err;
     }
-  };
+  }, [user, toast]);
 
-  // Send feedback to agent (learning)
-  const sendFeedback = async (agentId: string, correction: string) => {
-    if (!user) return null;
+  // Delete an agent
+  const deleteAgent = useCallback(async (agentId: string): Promise<void> => {
+    if (!user) {
+      throw new Error('Пользователь не авторизован');
+    }
 
     try {
-      const { data, error } = await supabase.functions.invoke('agents', {
-        body: { agentId, correction }
-      });
+      const { error: deleteError } = await supabase
+        .from('agents')
+        .delete()
+        .eq('id', agentId)
+        .eq('user_id', user.id); // Ensure user can only delete their own agents
 
-      if (error) {
-        throw error;
+      if (deleteError) {
+        console.error('Error deleting agent:', deleteError);
+        throw new Error(deleteError.message);
       }
 
-      await loadAgents();
-      
+      // Remove from local state
+      setAgents(prev => prev.filter(agent => agent.id !== agentId));
+
       toast({
-        title: "Успешно",
-        description: "Обратная связь отправлена, агент обучен",
+        title: 'Агент удален',
+        description: 'Агент успешно удален',
       });
+    } catch (err) {
+      console.error('Error deleting agent:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Неизвестная ошибка';
+      toast({
+        title: 'Ошибка удаления агента',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      throw err;
+    }
+  }, [user, toast]);
+
+  // Get agent by ID
+  const getAgentById = useCallback(async (agentId: string): Promise<Agent | null> => {
+    if (!user) {
+      return null;
+    }
+
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('agents')
+        .select('*')
+        .eq('id', agentId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching agent:', fetchError);
+        return null;
+      }
 
       return data;
-    } catch (error) {
-      console.error('Error sending feedback:', error);
-      toast({
-        title: "Ошибка",
-        description: "Не удалось отправить обратную связь",
-        variant: "destructive",
-      });
+    } catch (err) {
+      console.error('Unexpected error fetching agent:', err);
       return null;
-    }
-  };
-
-  // Delete agent
-  const deleteAgent = async (agentId: string) => {
-    if (!user) return;
-
-    try {
-      const response = await fetch(`/api/agents/${agentId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete agent');
-      }
-
-      await loadAgents();
-      
-      toast({
-        title: "Успешно",
-        description: "Агент удален",
-      });
-    } catch (error) {
-      console.error('Error deleting agent:', error);
-      toast({
-        title: "Ошибка",
-        description: "Не удалось удалить агента",
-        variant: "destructive",
-      });
-    }
-  };
-
-  useEffect(() => {
-    if (user) {
-      loadAgents();
     }
   }, [user]);
+
+  // Load agents when user changes
+  useEffect(() => {
+    loadAgents();
+  }, [loadAgents]);
 
   return {
     agents,
     loading,
+    error,
     createAgent,
     updateAgent,
-    sendFeedback,
     deleteAgent,
+    getAgentById,
     loadAgents
   };
 };

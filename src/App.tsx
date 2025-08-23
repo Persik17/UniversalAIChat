@@ -7,6 +7,8 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Agents from "./pages/Agents";
+import Documents from "./pages/Documents";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -19,9 +21,12 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/agents" element={<Agents />} />
+                                    <Route path="/" element={<Index />} />
+                        <Route path="/chat" element={<Index />} />
+                        <Route path="/auth" element={<Auth />} />
+                        <Route path="/agents" element={<Agents />} />
+                        <Route path="/documents" element={<Documents />} />
+                        <Route path="/settings" element={<Settings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

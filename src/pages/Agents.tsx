@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Bot, 
   Plus, 
@@ -20,9 +21,12 @@ import {
   PenTool,
   BarChart3,
   Sparkles,
-  Settings
+  Settings,
+  Activity,
+  Clock,
+  TrendingUp
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { useAgents } from '@/hooks/useAgents';
 import { useToast } from '@/hooks/use-toast';
 
 interface Agent {
@@ -30,20 +34,24 @@ interface Agent {
   name: string;
   description: string;
   system_prompt: string;
+  role: string;
+  is_active: boolean;
+  performance_metrics?: any;
+  last_updated?: string;
   created_at: string;
 }
 
 const Agents = () => {
   const { user, loading } = useAuth();
   const { toast } = useToast();
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { agents, loading: agentsLoading, createAgent, updateAgent, deleteAgent } = useAgents();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    system_prompt: ''
+    system_prompt: '',
+    role: 'assistant'
   });
 
   const agentIcons = {
@@ -58,36 +66,11 @@ const Agents = () => {
     return <Navigate to="/auth" replace />;
   }
 
-  if (loading) {
+  if (loading || agentsLoading) {
     return <div className="min-h-screen flex items-center justify-center">
       <Bot className="h-8 w-8 animate-spin text-primary" />
     </div>;
   }
-
-  useEffect(() => {
-    loadAgents();
-  }, []);
-
-  const loadAgents = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('agents')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setAgents(data || []);
-    } catch (error) {
-      console.error('Error loading agents:', error);
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось загрузить агентов',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSave = async () => {
     try {
@@ -101,26 +84,36 @@ const Agents = () => {
       }
 
       if (editingAgent) {
-        const { error } = await supabase
-          .from('agents')
-          .update(formData)
-          .eq('id', editingAgent.id);
-
-        if (error) throw error;
-        toast({ title: 'Успех', description: 'Агент обновлен' });
+        // Update existing agent
+        await updateAgent(editingAgent.id, {
+          name: formData.name,
+          description: formData.description,
+          system_prompt: formData.system_prompt,
+          role: formData.role
+        });
+        
+        toast({
+          title: 'Успешно',
+          description: 'Агент обновлен',
+        });
       } else {
-        const { error } = await supabase
-          .from('agents')
-          .insert([formData]);
-
-        if (error) throw error;
-        toast({ title: 'Успех', description: 'Агент создан' });
+        // Create new agent
+        await createAgent({
+          name: formData.name,
+          description: formData.description,
+          system_prompt: formData.system_prompt,
+          role: formData.role
+        });
+        
+        toast({
+          title: 'Успешно',
+          description: 'Агент создан',
+        });
       }
 
       setIsDialogOpen(false);
       setEditingAgent(null);
-      setFormData({ name: '', description: '', system_prompt: '' });
-      loadAgents();
+      setFormData({ name: '', description: '', system_prompt: '', role: 'assistant' });
     } catch (error) {
       console.error('Error saving agent:', error);
       toast({
@@ -135,14 +128,8 @@ const Agents = () => {
     if (!confirm(`Удалить агента "${agent.name}"?`)) return;
 
     try {
-      const { error } = await supabase
-        .from('agents')
-        .delete()
-        .eq('id', agent.id);
-
-      if (error) throw error;
+      await deleteAgent(agent.id);
       toast({ title: 'Успех', description: 'Агент удален' });
-      loadAgents();
     } catch (error) {
       console.error('Error deleting agent:', error);
       toast({
@@ -158,14 +145,15 @@ const Agents = () => {
     setFormData({
       name: agent.name,
       description: agent.description,
-      system_prompt: agent.system_prompt
+      system_prompt: agent.system_prompt,
+      role: agent.role || 'assistant'
     });
     setIsDialogOpen(true);
   };
 
   const openCreateDialog = () => {
     setEditingAgent(null);
-    setFormData({ name: '', description: '', system_prompt: '' });
+    setFormData({ name: '', description: '', system_prompt: '', role: 'assistant' });
     setIsDialogOpen(true);
   };
 
@@ -221,6 +209,22 @@ const Agents = () => {
                     />
                   </div>
                   <div>
+                    <Label htmlFor="role">Роль *</Label>
+                    <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Выберите роль агента" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="assistant">Универсальный ассистент</SelectItem>
+                        <SelectItem value="researcher">Исследователь</SelectItem>
+                        <SelectItem value="support">Техническая поддержка</SelectItem>
+                        <SelectItem value="coder">Программист</SelectItem>
+                        <SelectItem value="writer">Писатель</SelectItem>
+                        <SelectItem value="analyst">Аналитик</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
                     <Label htmlFor="system_prompt">Системный промпт *</Label>
                     <Textarea
                       id="system_prompt"
@@ -246,7 +250,7 @@ const Agents = () => {
 
         {/* Content */}
         <ScrollArea className="flex-1 p-6">
-          {isLoading ? (
+          {agentsLoading ? (
             <div className="flex items-center justify-center h-40">
               <Bot className="h-8 w-8 animate-spin text-primary" />
             </div>
@@ -257,22 +261,27 @@ const Agents = () => {
                 return (
                   <Card key={agent.id} className="hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-primary/10 rounded-lg">
-                            <IconComponent className="h-5 w-5 text-primary" />
+                                              <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary/10 rounded-lg">
+                              <IconComponent className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <CardTitle className="text-lg">{agent.name}</CardTitle>
+                              <CardDescription className="text-sm">
+                                {agent.description || 'Персональный ассистент'}
+                              </CardDescription>
+                            </div>
                           </div>
-                          <div>
-                            <CardTitle className="text-lg">{agent.name}</CardTitle>
-                            <CardDescription className="text-sm">
-                              {agent.description || 'Персональный ассистент'}
-                            </CardDescription>
+                          <div className="flex flex-col gap-1 items-end">
+                            <Badge variant={agent.is_active ? "default" : "secondary"} className="text-xs">
+                              {agent.is_active ? 'Активен' : 'Неактивен'}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {agent.role || 'assistant'}
+                            </Badge>
                           </div>
                         </div>
-                        <Badge variant="secondary" className="text-xs">
-                          AI
-                        </Badge>
-                      </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
@@ -282,10 +291,39 @@ const Agents = () => {
                             {agent.system_prompt}
                           </p>
                         </div>
+                        
+                        {/* Performance Metrics */}
+                        {agent.performance_metrics && (
+                          <div className="space-y-2 pt-2 border-t">
+                            <h4 className="text-sm font-medium">Метрики производительности:</h4>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                              <div className="flex items-center gap-1">
+                                <TrendingUp className="h-3 w-3 text-green-500" />
+                                <span>Точность: {Math.round((agent.performance_metrics?.accuracy || 0) * 100)}%</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3 text-blue-500" />
+                                <span>Время: {agent.performance_metrics?.response_time || 0}s</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Activity className="h-3 w-3 text-purple-500" />
+                                <span>Оценка: {agent.performance_metrics?.user_satisfaction || 0}/5</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
                         <div className="flex items-center justify-between pt-2 border-t">
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(agent.created_at).toLocaleDateString()}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-muted-foreground">
+                              Создан: {new Date(agent.created_at).toLocaleDateString()}
+                            </span>
+                            {agent.last_updated && (
+                              <span className="text-xs text-muted-foreground">
+                                Обновлен: {new Date(agent.last_updated).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex gap-1">
                             <Button
                               variant="ghost"

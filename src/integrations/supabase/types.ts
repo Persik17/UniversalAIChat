@@ -25,6 +25,10 @@ export type Database = {
           system_prompt: string
           updated_at: string
           user_id: string | null
+          conversation_history: Json | null
+          performance_metrics: Json | null
+          is_active: boolean | null
+          last_updated: string | null
         }
         Insert: {
           created_at?: string
@@ -36,6 +40,10 @@ export type Database = {
           system_prompt: string
           updated_at?: string
           user_id?: string | null
+          conversation_history?: Json | null
+          performance_metrics?: Json | null
+          is_active?: boolean | null
+          last_updated?: string | null
         }
         Update: {
           created_at?: string
@@ -47,6 +55,10 @@ export type Database = {
           system_prompt?: string
           updated_at?: string
           user_id?: string | null
+          conversation_history?: Json | null
+          performance_metrics?: Json | null
+          is_active?: boolean | null
+          last_updated?: string | null
         }
         Relationships: []
       }
@@ -57,6 +69,9 @@ export type Database = {
           title: string
           updated_at: string
           user_id: string
+          chat_type: string | null
+          agent_ids: string[] | null
+          document_ids: string[] | null
         }
         Insert: {
           created_at?: string
@@ -64,6 +79,9 @@ export type Database = {
           title: string
           updated_at?: string
           user_id: string
+          chat_type?: string | null
+          agent_ids?: string[] | null
+          document_ids?: string[] | null
         }
         Update: {
           created_at?: string
@@ -71,6 +89,9 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+          chat_type?: string | null
+          agent_ids?: string[] | null
+          document_ids?: string[] | null
         }
         Relationships: []
       }
@@ -183,6 +204,9 @@ export type Database = {
           msg_type: string | null
           role: string
           sender: string | null
+          agent_id: string | null
+          intent: string | null
+          confidence: number | null
         }
         Insert: {
           chat_id: string
@@ -194,6 +218,9 @@ export type Database = {
           msg_type?: string | null
           role: string
           sender?: string | null
+          agent_id?: string | null
+          intent?: string | null
+          confidence?: number | null
         }
         Update: {
           chat_id?: string
@@ -205,6 +232,9 @@ export type Database = {
           msg_type?: string | null
           role?: string
           sender?: string | null
+          agent_id?: string | null
+          intent?: string | null
+          confidence?: number | null
         }
         Relationships: [
           {
@@ -212,6 +242,13 @@ export type Database = {
             columns: ["chat_id"]
             isOneToOne: false
             referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
             referencedColumns: ["id"]
           },
         ]
@@ -272,6 +309,83 @@ export type Database = {
           {
             foreignKeyName: "prompts_agent_id_fkey"
             columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_conversations: {
+        Row: {
+          id: string
+          chat_id: string
+          agent_ids: string[]
+          conversation_state: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          chat_id: string
+          agent_ids: string[]
+          conversation_state?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          chat_id?: string
+          agent_ids?: string[]
+          conversation_state?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_conversations_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intent_classifications: {
+        Row: {
+          id: string
+          message_id: string
+          intent: string
+          confidence: number
+          suggested_agent_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          message_id: string
+          intent: string
+          confidence: number
+          suggested_agent_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          message_id?: string
+          intent?: string
+          confidence?: number
+          suggested_agent_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intent_classifications_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intent_classifications_suggested_agent_id_fkey"
+            columns: ["suggested_agent_id"]
             isOneToOne: false
             referencedRelation: "agents"
             referencedColumns: ["id"]
