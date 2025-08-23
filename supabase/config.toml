@@ -2,3 +2,18 @@ project_id = "cifpoiugfrmkcdooefsw"
 
 [functions.chat-with-ai]
 verify_jwt = false
+
+[functions.chat]
+verify_jwt = true
+
+[functions.agents]
+verify_jwt = true
+
+[functions.rag-upload]
+verify_jwt = true
+
+[functions.pdf-summarize]
+verify_jwt = true
+
+[functions.tts]
+verify_jwt = false
